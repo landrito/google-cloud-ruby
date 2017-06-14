@@ -14,6 +14,7 @@
 
 require "helper"
 require "google/cloud/credentials"
+require "grpc"
 
 ##
 # This test is testing the private class Google::Cloud::Credentials. We want to make
@@ -67,6 +68,30 @@ describe Google::Cloud::Credentials, :private do
 
     Signet::OAuth2::Client.stub :new, stubbed_signet do
       Google::Cloud::Credentials.new default_keyfile_hash, scope: "http://example.com/scope"
+    end
+
+    mocked_signet.verify
+  end
+
+  it "creates grpc channel credentials" do
+    mocked_signet = MiniTest::Mock.new
+    mocked_signet.expect :fetch_access_token!, true
+    mocked_signet.expect :updater_proc, Proc.new { }
+
+    stubbed_signet = ->(options, scope: nil) {
+      options[:token_credential_uri].must_equal "https://accounts.google.com/o/oauth2/token"
+      options[:audience].must_equal "https://accounts.google.com/o/oauth2/token"
+      options[:scope].must_equal []
+      options[:issuer].must_equal default_keyfile_hash["client_email"]
+      options[:signing_key].must_be_kind_of OpenSSL::PKey::RSA
+
+      mocked_signet
+    }
+
+    Signet::OAuth2::Client.stub :new, stubbed_signet do
+      creds = Google::Cloud::Credentials.new default_keyfile_hash
+      chan_creds = creds.chan_creds
+      assert_instance_of(GRPC::Core::ChannelCredentials, chan_creds)
     end
 
     mocked_signet.verify

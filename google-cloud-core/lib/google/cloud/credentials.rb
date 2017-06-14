@@ -86,6 +86,12 @@ module Google
         new client
       end
 
+      def chan_creds
+        require "grpc"
+        GRPC::Core::ChannelCredentials.new.compose \
+            GRPC::Core::CallCredentials.new @client.updater_proc
+      end
+
       protected
 
       ##
